@@ -2,6 +2,7 @@
 
 # Options
 DRIVE="sda"
+PASSWORD=""
 
 partition_disk() {
   (
@@ -26,7 +27,7 @@ partition_disk() {
 mk_filesystem() {
   mkfs.vfat -nBOOT -F32 /dev/sda1 
   echo "y" | mkfs.ext2 -L grub /dev/sda2
-  echo "YES" | cryptsetup luksFormat --type=luks -s=512 /dev/sda3
+  echo -n "$PASSWORD" | cryptsetup luksFormat --type=luks -s=512 /dev/sda3
   cryptsetup open /dev/sda3 cryptroot
   mkfs.btrfs -L void --force /dev/mapper/cryptroot
 }
@@ -34,13 +35,13 @@ mk_filesystem() {
 mount_partitions() {
   BTRFS_OPTS="rw,noatime,ssd,compress=zsdt,space_cache,commit=120"
   # creating subvols
-  mount -o $BTRFS_OPTS /dev/wrapper/cryptroot /mnt
+  mount -o $BTRFS_OPTS /dev/mapper/cryptroot /mnt
   btrfs subvolume create /mnt/@
   btrfs subvolume create /mnt/@home
   btrfs subvolume create /mnt/@snapshots
   umount /mnt
   # mounting partitions
-  mount -o @BTRFS_OPTS,subvol=0 /dev/mapper/cryptroot /mnt # /
+  mount -o $BTRFS_OPTS,subvol=0 /dev/mapper/cryptroot /mnt # /
   mkdir -p /mnt/home
   mount -o $BTRFS_OPTS,subvol=@home /dev/mapper/cryptroot /mnt/home # /home
   mkdir -p /mnt/.snapshots
