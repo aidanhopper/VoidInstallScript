@@ -1,8 +1,10 @@
-#!/usr/bin/sh
+#!/usr/bin/bash
 
 # Options
 DRIVE="sda"
 PASSWORD=""
+REPO="https://alpha.us.repo.voidlinux.org/current"
+ARCH=x86_x64
 
 partition_disk() {
   (
@@ -33,7 +35,7 @@ mk_filesystem() {
 }
 
 mount_partitions() {
-  BTRFS_OPTS="rw,noatime,ssd,compress=zsdt,space_cache,commit=120"
+  BTRFS_OPTS="rw,noatime,ssd,compress=zstd,space_cache,commit=120"
   # creating subvols
   mount -o $BTRFS_OPTS /dev/mapper/cryptroot /mnt
   btrfs subvolume create /mnt/@
@@ -41,7 +43,7 @@ mount_partitions() {
   btrfs subvolume create /mnt/@snapshots
   umount /mnt
   # mounting partitions
-  mount -o $BTRFS_OPTS,subvol=0 /dev/mapper/cryptroot /mnt # /
+  mount -o $BTRFS_OPTS,subvol=@ /dev/mapper/cryptroot /mnt # /
   mkdir -p /mnt/home
   mount -o $BTRFS_OPTS,subvol=@home /dev/mapper/cryptroot /mnt/home # /home
   mkdir -p /mnt/.snapshots
@@ -54,11 +56,31 @@ mount_partitions() {
   # nested subvolume for swap
   btrfs subvolume create /mnt/var/swap
   # mount efi partition
-  mkdir /mnt/efi
-  mount -o rw,noatime /dev/sda1 /mnt/efi
+  mkdir /mnt/efi && mount -o rw,noatime /dev/sda1 /mnt/efi
   # mount boot partition
-  mkdir /mnt/efi
-  mount -o rw,noatime /dev/sda2 /mnt/boot
+  mkdir /mnt/boot && mount -o rw,noatime /dev/sda2 /mnt/boot
+}
+
+install_system() {
+  XBPS_ARCH=$ARCH xbps-install -S -R "$REPO" -r /mnt base-system btrfs-progs cryptsetup
+  for dir in dev proc sys run; do mount --rbind /$dir /mnt/$dir; mount --make-rslave /mnt/$dir; done
+  cp /etc/resolv.conf /mnt/etc/
+  chroot /mnt/ /bin/bash
+  BTRFS_OPTS="rw,noatime,ssd,compress=zstd,space_cache,commit=120"
+  echo "void" >> /etc/hostname
+  echo -n "$PASSWORD" | passwd
+  UEFI_UUID=$(blkid -s UUID -o value /dev/sda1)
+  GRUB_UUID=$(blkid -s UUID -o value /dev/sda2)
+  ROOT_UUID=$(blkid -s UUID -o value /dev/mapper/cryptoroot)
+  cat <<EOF > /etc/fstab
+  UUID=$ROOT_UUID / btrfs $BTRFS_OPTS,subvol=@ 0 1
+  UUID=$UEFI_UUID /efi vfat defaults,noatime 0 2
+  UUID=$GRUB_UUID /boot ext2 defaults,noatime 0 2
+  UUID=$ROOT_UUID /home btrfs $BTRFS_OPTS,subvol=@home 0 2
+  UUID=$ROOT_UUID /.snapshots btrfs $BTRFS_OPTS,subvol=@snapshots 0 2
+  tmpfs /tmp tmpfs defaults,nosuid,nodev 0 0
+  EOF
+  echo hostonly=yes >> /etc/dracut.conf
 }
 
 echo "PARTITIONING DISKS"
