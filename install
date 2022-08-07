@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/sh
 
 # Options
 DRIVE="sda"
@@ -6,8 +6,8 @@ PASSWORD=""
 REPO="https://repo-default.voidlinux.org/current"
 ARCH=x86_64
 
-calculate_offset() {
-cat << EOF | echo 
+create_map_physical() {
+cat >> $HOME/btrfs_map_physical.c << 'EOF'
 // SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
 // SPDX-License-Identifier: MIT
 
@@ -557,7 +557,7 @@ out:
 	close(fd);
 	return ret ? EXIT_FAILURE : EXIT_SUCCESS;
 }
-EOF 
+EOF
 }
 
 partition_disk() {
@@ -644,11 +644,12 @@ EOF
   chmod 600 /var/swap/swapfile
   dd if=/dev/zero of=/var/swap/swapfile bs=1G count=16 status=progress
   mkswap /var/swap/swapfile
-  RESUME_OFFSET=calcuate_offset
+  create_map_physical
+  gcc -O2 "\$HOME"/btrfs_map_physical.c -o "\$HOME"/btrfs_map_physical
+  RESUME_OFFSET=\$((\$("\$HOME"/btrfs_map_physical /var/swap/swapfile | awk -F " " 'FNR == 2 {print \$NF}')/\$(getconf PAGESIZE)))
   GRUB_CMDLINE_LINUX="resume=UUID=$ROOT_UUID resume_offset=$RESUME_OFFSET"
 EOFF
 }
-
 
 echo "PARTITIONING DISKS"
 partition_disk
@@ -656,3 +657,5 @@ echo "MAKING ENCRYPTED FILESYSTEM"
 mk_filesystem
 echo "MOUNTING PARTITIONS"
 mount_partitions
+echo "INSTALLING SYSTEM"
+install_system
