@@ -334,14 +334,14 @@ static int print_extents(int fd, struct chunk *chunks, size_t num_chunks)
 			}
 		}
 
-		printf("%" PRIu64 "\t", file_offset);
+		printf("%" PRIu64 ",", file_offset);
 		if (type == BTRFS_FILE_EXTENT_INLINE ||
 		    type == BTRFS_FILE_EXTENT_REG ||
 		    type == BTRFS_FILE_EXTENT_PREALLOC) {
-			printf("%" PRIu64 "\t%" PRIu64 "\t", file_size,
+			printf("%" PRIu64 "\t%" PRIu64 ",", file_size,
 			       extent_offset);
 		} else {
-			printf("\t\t");
+			printf(",");
 		}
 
 		switch (type) {
@@ -618,6 +618,9 @@ mount_partitions() {
 install_system() {
   echo "Y" | XBPS_ARCH=$ARCH xbps-install -Sy -R "$REPO" -r /mnt base-system btrfs-progs cryptsetup
   for dir in dev proc sys run; do mount --rbind /$dir /mnt/$dir; mount --make-rslave /mnt/$dir; done
+  rm /mnt/btrfs_map_physical
+  rm /mnt/btrfs_map_physical.c
+  create_map_physical
   cp /etc/resolv.conf /mnt/etc/
 cat << EOFF | chroot /mnt/ /bin/bash
   BTRFS_OPTS="rw,noatime,ssd,compress=zstd,space_cache,commit=120"
@@ -644,9 +647,10 @@ EOF
   chmod 600 /var/swap/swapfile
   dd if=/dev/zero of=/var/swap/swapfile bs=1G count=16 status=progress
   mkswap /var/swap/swapfile
-  create_map_physical
-  gcc -O2 "\$HOME"/btrfs_map_physical.c -o "\$HOME"/btrfs_map_physical
-  RESUME_OFFSET=\$((\$("\$HOME"/btrfs_map_physical /var/swap/swapfile | awk -F " " 'FNR == 2 {print \$NF}')/\$(getconf PAGESIZE)))
+  gcc -O2 /btrfs_map_physical.c -o /btrfs_map_physical
+  PHYSICAL_OFFSET=/btrfs_map_physical /var/swap/swapfile | grep ^0 | awk -F " " '{print $ 9}'
+  PAGESIZE=$(getconf PAGESIZE)
+  RESUME_OFFSET=$(( $PYSICAL_OFFSET / $PAGESIZE ))
   GRUB_CMDLINE_LINUX="resume=UUID=$ROOT_UUID resume_offset=$RESUME_OFFSET"
 EOFF
 }
