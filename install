@@ -1,0 +1,31 @@
+#!/usr/bin/sh
+
+$DRIVE="sda"
+
+
+
+partition_disk() {
+  (
+  # creates gpt partition
+  echo g; echo "Y"; 
+  # creates efi partition with size of 200MiB at sda1
+  echo n; echo "Y"; echo ""; echo "Y"; echo ""; 
+  echo "Y"; echo "+200MiB"; echo "Y"; echo t;
+  echo "1"; echo "Y"; 
+  # creates boot partition with size of 200MiB
+  echo n; echo "Y"; echo ""; echo "Y"; echo ""; 
+  echo "Y"; echo "+800MiB"; echo "Y"; echo t; 
+  echo ""; echo "Y"; echo "4"; echo "Y"; 
+  # creates filesystem partition with remaining storage
+  echo n; echo "Y"; echo ""; echo "Y"; echo "";
+  echo "Y"; echo ""; echo "Y"; echo t; echo ""; 
+  echo "Y"; echo "4"; echo "Y"; 
+  # writes
+  echo w;
+  ) 
+
+  # sudo fdisk /dev/$DRIVE 
+
+}
+
+partition_disk
