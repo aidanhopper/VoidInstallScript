@@ -1,31 +1,36 @@
 #!/usr/bin/sh
 
-$DRIVE="sda"
-
+# Options
+DRIVE="sda"
 
 
 partition_disk() {
   (
   # creates gpt partition
-  echo g; echo "Y"; 
+  echo g; 
   # creates efi partition with size of 200MiB at sda1
-  echo n; echo "Y"; echo ""; echo "Y"; echo ""; 
-  echo "Y"; echo "+200MiB"; echo "Y"; echo t;
-  echo "1"; echo "Y"; 
+  echo n; echo ""; echo ""; 
+  echo "+200MiB"; 
+  echo t; echo "1"; 
   # creates boot partition with size of 200MiB
-  echo n; echo "Y"; echo ""; echo "Y"; echo ""; 
-  echo "Y"; echo "+800MiB"; echo "Y"; echo t; 
-  echo ""; echo "Y"; echo "4"; echo "Y"; 
+  echo n; echo ""; echo ""; 
+  echo "+800MiB"; echo t; 
+  echo ""; echo "4"; 
   # creates filesystem partition with remaining storage
-  echo n; echo "Y"; echo ""; echo "Y"; echo "";
-  echo "Y"; echo ""; echo "Y"; echo t; echo ""; 
-  echo "Y"; echo "4"; echo "Y"; 
+  echo n; echo ""; echo ""; echo "";
   # writes
   echo w;
-  ) 
-
-  # sudo fdisk /dev/$DRIVE 
+  ) # | sudo "fdisk /dev/$DRIVE"
 
 }
 
+mk_filesystem() {
+  mkfs.vfat -nBOOT -F32 /dev/sda1
+  mkfs.ext2 -L grub /dev/sda2
+  cryptsetup luksFormat --type=luks -s=512 /dev/sda3
+  cryptsetup open /dev/sda3 cryptroot
+  mkfs.btrfs -L void /dev/mapper/cryptroot
+}
+
 partition_disk
+mk_filesystem
