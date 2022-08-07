@@ -7,7 +7,7 @@ REPO="https://repo-default.voidlinux.org/current"
 ARCH=x86_64
 
 create_map_physical() {
-cat >> $HOME/btrfs_map_physical.c << 'EOF'
+cat >> /mnt/btrfs_map_physical.c << 'EOF'
 // SPDX-FileCopyrightText: Omar Sandoval <osandov@osandov.com>
 // SPDX-License-Identifier: MIT
 
@@ -648,7 +648,7 @@ EOF
   dd if=/dev/zero of=/var/swap/swapfile bs=1G count=16 status=progress
   mkswap /var/swap/swapfile
   gcc -O2 /btrfs_map_physical.c -o /btrfs_map_physical
-  PHYSICAL_OFFSET=/btrfs_map_physical /var/swap/swapfile | grep ^0 | awk -F " " '{print $ 9}'
+  PHYSICAL_OFFSET=$(/btrfs_map_physical /var/swap/swapfile | grep ^0 | awk -F " " '{print $ 9}')
   PAGESIZE=$(getconf PAGESIZE)
   RESUME_OFFSET=$(( $PYSICAL_OFFSET / $PAGESIZE ))
   GRUB_CMDLINE_LINUX="resume=UUID=$ROOT_UUID resume_offset=$RESUME_OFFSET"
